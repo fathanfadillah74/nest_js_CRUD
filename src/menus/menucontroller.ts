@@ -13,7 +13,6 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { MenuService } from './menu.service';
 import { CreateMenuDto } from './dto/create-menu.dto';
 import { UpdateMenuDto } from './dto/update-menu.dto';
-import { ReorderMenuDto } from './dto/reorder-menu.dto';
 
 @ApiTags('menus')
 @Controller('menus')
@@ -68,19 +67,19 @@ export class MenuController {
   @ApiResponse({ status: 400, description: 'Invalid move operation' })
   move(
     @Param('id', ParseIntPipe) id: number,
-    @Body('parentId') parentId: number | null,
+    @Body() body: { parentId: number; order?: number },
   ) {
-    return this.menusService.move(id, parentId ?? null);
+    return this.menusService.move(id, body.parentId, body.order);
   }
 
   @Patch(':id/reorder')
-  @ApiOperation({ summary: 'Reorder menu item within same level' })
+  @ApiOperation({ summary: 'Reorder menu item among siblings' })
   @ApiResponse({ status: 200, description: 'Menu reordered successfully' })
-  @ApiResponse({ status: 404, description: 'Menu not found' })
+  @ApiResponse({ status: 400, description: 'Invalid reorder operation' })
   reorder(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: ReorderMenuDto,
+    @Body('order', ParseIntPipe) order: number,
   ) {
-    return this.menusService.reorder(id, dto.order);
+    return this.menusService.reorder(id, order);
   }
 }
