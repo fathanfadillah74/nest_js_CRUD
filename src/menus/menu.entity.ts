@@ -18,7 +18,7 @@ export class Menu {
     name!: string;
 
     @Column({ name: 'parent_id', nullable: true })
-    parentId!: number | null;
+    parent_id!: number | null;
 
     @Column({ name: 'order', default: 0 })
     order!: number;

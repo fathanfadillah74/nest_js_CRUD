@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, MoreThanOrEqual, Not } from 'typeorm';
 import { Menu } from './menu.entity';
 import { CreateMenuDto } from './dto/create-menu.dto';
 import { UpdateMenuDto } from './dto/update-menu.dto';
@@ -33,27 +33,49 @@ export class MenuService {
   }
 
   async create(dto: CreateMenuDto): Promise<Menu> {
-    // Validasi parent exists kalau parentId dikirim
-    if (dto.parentId) {
+    if (dto.parent_id) {
       const parent = await this.menuRepository.findOne({
-        where: { id: dto.parentId },
+        where: { id: dto.parent_id },
       });
       if (!parent) {
-        throw new NotFoundException(`Parent menu #${dto.parentId} not found`);
+        throw new NotFoundException(`Parent menu #${dto.parent_id} not found`);
       }
     }
 
-    // Auto set order kalau tidak dikirim
+    const parentId: any = dto.parent_id ?? null;
+
     if (dto.order === undefined) {
       const siblings = await this.menuRepository.count({
-        where: { parentId: dto.parentId ?? 0 },
+        where: { parent_id: parentId },
       });
       dto.order = siblings;
+    } else {
+      // Cek max order yang ada
+      const maxOrderItem = await this.menuRepository.findOne({
+        where: { parent_id: parentId },
+        order: { order: 'DESC' },
+      });
+      const maxOrder = maxOrderItem ? maxOrderItem.order : -1;
+
+      // Jika order baru ada di tengah, increment items yang >= order baru
+      if (dto.order <= maxOrder) {
+        const conflictingItems = await this.menuRepository.find({
+          where: {
+            parent_id: parentId,
+            order: MoreThanOrEqual(dto.order),
+          },
+          order: { order: 'ASC' },
+        });
+        for (const item of conflictingItems) {
+          item.order += 1;
+        }
+        await this.menuRepository.save(conflictingItems);
+      }
     }
 
     const menu = this.menuRepository.create({
       name: dto.name,
-      parentId: dto.parentId ?? null,
+      parent_id: parentId,
       order: dto.order,
     });
 
@@ -63,6 +85,31 @@ export class MenuService {
   async update(id: number, dto: UpdateMenuDto): Promise<Menu> {
     const menu = await this.menuRepository.findOne({ where: { id } });
     if (!menu) throw new NotFoundException(`Menu #${id} not found`);
+
+    const parentId: any = dto.parent_id ?? menu.parent_id ?? null;
+
+    if (dto.order !== undefined && dto.order !== menu.order) {
+      const maxOrderItem = await this.menuRepository.findOne({
+        where: { parent_id: parentId },
+        order: { order: 'DESC' },
+      });
+      const maxOrder = maxOrderItem ? maxOrderItem.order : -1;
+
+      if (dto.order <= maxOrder) {
+        const conflictingItems = await this.menuRepository.find({
+          where: {
+            parent_id: parentId,
+            order: MoreThanOrEqual(dto.order),
+            id: Not(id),
+          },
+          order: { order: 'ASC' },
+        });
+        for (const item of conflictingItems) {
+          item.order += 1;
+        }
+        await this.menuRepository.save(conflictingItems);
+      }
+    }
 
     Object.assign(menu, dto);
     return this.menuRepository.save(menu);
@@ -76,31 +123,31 @@ export class MenuService {
     return { message: `Menu #${id} deleted successfully` };
   }
 
-  async move(id: number, newParentId: number | null): Promise<Menu> {
+  async move(id: number, newparent_id: number | null): Promise<Menu> {
     const menu = await this.menuRepository.findOne({ where: { id } });
     if (!menu) throw new NotFoundException(`Menu #${id} not found`);
 
     // Cegah menu jadi child dari dirinya sendiri
-    if (newParentId === id) {
+    if (newparent_id === id) {
       throw new BadRequestException('Menu cannot be its own parent');
     }
 
     // Cegah circular reference (parent tidak boleh jadi child dari child-nya)
-    if (newParentId) {
-      const isDescendant = await this.checkIsDescendant(id, newParentId);
+    if (newparent_id) {
+      const isDescendant = await this.checkIsDescendant(id, newparent_id);
       if (isDescendant) {
         throw new BadRequestException('Cannot move menu into its own descendant');
       }
 
       const newParent = await this.menuRepository.findOne({
-        where: { id: newParentId },
+        where: { id: newparent_id },
       });
       if (!newParent) {
-        throw new NotFoundException(`Parent menu #${newParentId} not found`);
+        throw new NotFoundException(`Parent menu #${newparent_id} not found`);
       }
     }
 
-    menu.parentId = newParentId;
+    menu.parent_id = newparent_id;
     return this.menuRepository.save(menu);
   }
 
@@ -109,7 +156,7 @@ export class MenuService {
     if (!menu) throw new NotFoundException(`Menu #${id} not found`);
 
     const siblings = await this.menuRepository.find({
-      where: { parentId: menu.parentId ?? 0 },
+      where: { parent_id: menu.parent_id ?? 0 },
       order: { order: 'ASC' },
     });
 
@@ -127,9 +174,9 @@ export class MenuService {
 
   // ---- Helper functions ----
 
-  private buildTree(menus: Menu[], parentId: number | null = null): Menu[] {
+  private buildTree(menus: Menu[], parent_id: number | null = null): Menu[] {
     return menus
-      .filter((m) => m.parentId === parentId)
+      .filter((m) => m.parent_id === parent_id)
       .map((m) => ({
         ...m,
         children: this.buildTree(menus, m.id),
@@ -138,7 +185,7 @@ export class MenuService {
 
   private async checkIsDescendant(id: number, targetId: number): Promise<boolean> {
     const children = await this.menuRepository.find({
-      where: { parentId: id },
+      where: { parent_id: id },
     });
     for (const child of children) {
       if (child.id === targetId) return true;

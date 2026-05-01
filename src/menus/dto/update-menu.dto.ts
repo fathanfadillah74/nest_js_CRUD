@@ -8,6 +8,11 @@ export class UpdateMenuDto {
   @IsOptional()
   name?: string;
 
+  @ApiProperty({ example: 1, required: false })
+  @IsInt()
+  @IsOptional()
+  parent_id?: number | null;
+
   @ApiProperty({ example: 0, required: false })
   @IsInt()
   @Min(0)

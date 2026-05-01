@@ -5,6 +5,11 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const server = app.getHttpAdapter().getInstance();
+  server.get('/', (req, res) => {
+    console.log('running in port 5000');
+    res.send('running in port 5000');
+  });
   app.setGlobalPrefix('api');
   app.enableCors();
 
@@ -26,8 +31,8 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
-  await app.listen(3000);
-  console.log('Server running on http://localhost:3000');
-  console.log('Swagger docs at http://localhost:3000/api/docs');
+  await app.listen(5000);
+  console.log('Server running on http://localhost:5000');
+  console.log('Swagger docs at http://localhost:5000/api/docs');
 }
 bootstrap();
