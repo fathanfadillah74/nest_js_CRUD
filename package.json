@@ -21,8 +21,8 @@
     "typeorm": "typeorm-cli",
     "migration:generate": "typeorm migration:generate",
     "migration:create": "typeorm migration:create",
-    "migration:run": "typeorm migration:run -d src/database/data-source.ts",
-    "migration:revert": "typeorm migration:revert -d src/database/data-source.ts"
+    "migration:run": "NODE_OPTIONS=\"--loader ts-node/esm\" typeorm migration:run -d src/database/data-source.ts",
+    "migration:revert": "NODE_OPTIONS=\"--loader ts-node/esm\" typeorm migration:revert -d src/database/data-source.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
